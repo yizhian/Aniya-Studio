@@ -1,0 +1,32 @@
+# Frontend (removed)
+frontend/
+
+# Python virtualenv
+.venv/
+__pycache__/
+
+# Claude Code config
+.claude/
+
+# Runtime data
+.agentgo/
+
+# Build artifacts
+*.test
+server
+server.test
+coverage.out
+
+# HTML decks/docs (not needed in container)
+*.html
+docs/
+
+# Environment (set via docker-compose or k8s)
+.env
+
+# Git
+.git/
+.gitignore
+
+# OS
+.DS_Store

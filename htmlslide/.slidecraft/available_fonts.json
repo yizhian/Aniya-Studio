@@ -1,0 +1,12 @@
+{
+  "fonts": [
+    { "family": "Inter", "category": "sans-serif", "weights": ["100..900"] },
+    { "family": "DM Sans", "category": "sans-serif", "weights": ["400", "500", "700"] },
+    { "family": "Noto Sans SC", "category": "sans-serif", "weights": ["400", "500", "700"] },
+    { "family": "Bricolage Grotesque", "category": "sans-serif", "weights": ["400", "500", "600", "700"] },
+    { "family": "Playfair Display", "category": "serif", "weights": ["400", "500", "600", "700", "900"] },
+    { "family": "JetBrains Mono", "category": "monospace", "weights": ["400", "500"] },
+    { "family": "Source Serif 4", "category": "serif", "weights": ["400", "500", "600", "700"] },
+    { "family": "Crimson Pro", "category": "serif", "weights": ["400", "500", "600", "700"] }
+  ]
+}

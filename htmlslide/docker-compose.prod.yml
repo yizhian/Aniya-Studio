@@ -1,0 +1,42 @@
+# docker-compose.prod.yml — 生产环境 (不暴露端口到宿主机)
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - AGENT_URL=http://agentgo:8080
+      - WORKSPACE_PATH=/workspace
+      - PORT=8000
+      - LOG_LEVEL=INFO
+      # CORS_ORIGINS must be set to your production domain (e.g. https://example.com)
+    volumes:
+      - workspace_data:/workspace
+    depends_on:
+      agentgo:
+        condition: service_healthy
+
+  agentgo:
+    build:
+      context: ../agentgo
+      dockerfile: Dockerfile
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - PROVIDER_TYPE=${PROVIDER_TYPE:-openai}
+      - PORT=8080
+      - AGENTGO_DATA_DIR=/workspace
+    volumes:
+      - workspace_data:/workspace
+      - ../agentgo/skills:/go/skills
+      - ../agentgo/project-skills:/go/project-skills
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  workspace_data:

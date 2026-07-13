@@ -1,0 +1,23 @@
+#gjs-canvas .gjs-editor-cont {
+  background: var(--editor-bg);
+}
+
+#gjs-canvas .gjs-pn-panels,
+#gjs-canvas .gjs-pn-views-container {
+  display: none !important;
+}
+
+#gjs-canvas .gjs-cv-canvas {
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 内置 RTE 工具条（双击文本时）——用 custom:true 后仍可能留空壳，强制不占位 */
+#gjs-canvas .gjs-rte-toolbar {
+  display: none !important;
+}
+
+[data-editor-mode='design'] #gjs-canvas .gjs-toolbar {
+  display: none !important;
+}

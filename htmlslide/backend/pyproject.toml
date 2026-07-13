@@ -1,0 +1,32 @@
+[project]
+name = "aniya-studio-bff"
+version = "0.1.0"
+description = "Aniya Studio — BFF Backend for Frontend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "httpx>=0.28",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "aiofiles>=24.0",
+    "python-magic>=0.4",
+    "uvicorn[standard]>=0.34",
+    "python-multipart>=0.0.20",
+    "playwright>=1.52",
+    "python-pptx>=0.6.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "respx>=0.21",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

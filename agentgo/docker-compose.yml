@@ -1,0 +1,18 @@
+services:
+  agentgo:
+    build: .
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL}
+      - PROVIDER_TYPE=${PROVIDER_TYPE:-openai}
+      - PORT=8080
+      - AGENTGO_DATA_DIR=/app/.agentgo
+    volumes:
+      - agentgo_data:/app/.agentgo
+    restart: unless-stopped
+
+volumes:
+  agentgo_data:

@@ -1,0 +1,48 @@
+# docker-compose.yml — 开发环境
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - AGENT_URL=http://agentgo:8080
+      - WORKSPACE_PATH=/workspace
+      - PORT=8000
+      - LOG_LEVEL=DEBUG
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+    volumes:
+      - workspace_data:/workspace
+      - ./backend/src:/app/src
+    depends_on:
+      agentgo:
+        condition: service_healthy
+
+  agentgo:
+    build:
+      context: ../agentgo
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - PROVIDER_TYPE=${PROVIDER_TYPE:-openai}
+      - PORT=8080
+      - AGENTGO_DATA_DIR=/workspace
+    volumes:
+      - workspace_data:/workspace
+      - ../agentgo/skills:/go/skills
+      - ../agentgo/project-skills:/go/project-skills
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  workspace_data:

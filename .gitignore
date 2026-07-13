@@ -1,0 +1,60 @@
+.DS_Store
+Thumbs.db
+
+# Claude Code local config
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files (API keys — never commit)
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Node.js
+**/node_modules/
+**/dist/
+**/.pnpm-store/
+**/.npm/
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+**/coverage/
+
+# Go build/runtime artifacts
+**/bin/
+**/*.out
+agentgo/server
+**/.agentgo/
+
+# Logs and temp files
+**/*.log
+**/tmp/
+**/.tmp/
+logs/
+
+# Local runtime (start.sh pid / mode)
+.run/
+
+# Local scratch notes
+.scratch/
+
+# Certificates and private keys
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+
+# Workspace data created at runtime
+workspace/
