@@ -7,6 +7,14 @@
 ![Python](https://img.shields.io/badge/BFF-FastAPI-009688)
 ![React](https://img.shields.io/badge/frontend-React%20%2B%20Vite-61DAFB)
 
+
+
+
+
+https://github.com/user-attachments/assets/c0fc0dbf-5536-482a-9591-b873c5923bfa
+
+
+
 > **In one line**: Aniya Studio is an open-source, self-hosted **AI slide / HTML PPT editor** — describe what you want in plain language, or drag-and-drop tweak it like a design tool, and switch between the two on the very same canvas.
 
 ---
