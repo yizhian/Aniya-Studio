@@ -60,14 +60,19 @@ func HasPreview(sk Skill) bool {
 }
 
 // ResolveAssetPath returns the absolute path to an asset file for a skill.
-// assetPath must be a path within assets/ (no "..").
+// assetPath must stay within the skill directory; callers usually pass paths
+// under assets/, but previews may also reference other skill-local files.
 func ResolveAssetPath(sk Skill, assetPath string) string {
-	if sk.DirPath == "" || assetPath == "" || strings.Contains(assetPath, "..") {
+	if sk.DirPath == "" || assetPath == "" || strings.Contains(assetPath, "..") || filepath.IsAbs(assetPath) {
 		return ""
 	}
 
 	local := filepath.Join(sk.DirPath, "assets", assetPath)
-	if fileExists(local) {
+	if isSafeChild(sk.DirPath, local) && fileExists(local) {
+		return local
+	}
+	local = filepath.Join(sk.DirPath, assetPath)
+	if isSafeChild(sk.DirPath, local) && fileExists(local) {
 		return local
 	}
 	return ""
@@ -76,4 +81,20 @@ func ResolveAssetPath(sk Skill, assetPath string) string {
 func fileExists(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && !st.IsDir()
+}
+
+func isSafeChild(root, candidate string) bool {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return false
+	}
+	candidateAbs, err := filepath.Abs(candidate)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(rootAbs, candidateAbs)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

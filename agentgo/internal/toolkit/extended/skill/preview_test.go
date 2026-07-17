@@ -48,11 +48,11 @@ func TestLoadSkills_RealDeckPreviews(t *testing.T) {
 	}
 	idx := LoadSkills(skillsDir, "/nonexistent")
 	cases := map[string]bool{
-		"magazine-web-ppt":        true,
-		"html-ppt-presenter-mode": true,
-		"replit-deck":             true,
+		"magazine-web-ppt":         true,
+		"html-ppt-presenter-mode":  true,
+		"replit-deck":              true,
 		"open-design-landing-deck": true,
-		"html-ppt":                false,
+		"html-ppt":                 false,
 	}
 	for name, want := range cases {
 		sk, ok := idx.ByName(name)
@@ -79,5 +79,33 @@ func TestResolvePreviewRel_ReplitDeck(t *testing.T) {
 	}
 	if !sk.HasPreview {
 		t.Fatal("expected HasPreview true")
+	}
+}
+
+func TestResolveAssetPath_AllowsSafeSkillLocalFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "style.css"), []byte("body{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	path := ResolveAssetPath(Skill{DirPath: dir}, "style.css")
+	if path == "" {
+		t.Fatal("expected skill-local asset path")
+	}
+	if filepath.Base(path) != "style.css" {
+		t.Fatalf("unexpected asset path %q", path)
+	}
+}
+
+func TestResolveAssetPath_BlocksTraversal(t *testing.T) {
+	dir := t.TempDir()
+	parentFile := filepath.Join(filepath.Dir(dir), "escape.css")
+	if err := os.WriteFile(parentFile, []byte("body{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	path := ResolveAssetPath(Skill{DirPath: dir}, "../escape.css")
+	if path != "" {
+		t.Fatalf("expected traversal to be blocked, got %q", path)
 	}
 }

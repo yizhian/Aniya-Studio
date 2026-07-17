@@ -88,6 +88,49 @@ wait_port_free() {
   done
 }
 
+require_port_free() {
+  local port="$1" name="$2"
+  if port_in_use "${port}"; then
+    err "${name} 端口 ${port} 已被占用。请先运行 ./start.sh stop，或手动释放该端口后再启动"
+    if have lsof; then
+      lsof -nP -iTCP:"${port}" -sTCP:LISTEN || true
+    fi
+    exit 1
+  fi
+}
+
+ensure_started_pid_alive() {
+  local pid="$1" name="$2" log_file="$3"
+  sleep 1
+  if ! kill -0 "${pid}" 2>/dev/null; then
+    err "${name} 启动后已退出，请查看日志: ${log_file}"
+    tail -n 40 "${log_file}" 2>/dev/null || true
+    exit 1
+  fi
+}
+
+stop_port_listener() {
+  local port="$1" name="$2"
+  have lsof || return 0
+  local pids
+  pids="$(lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)"
+  [[ -z "${pids}" ]] && return 0
+
+  for pid in ${pids}; do
+    if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
+      log "停止占用 ${name} 端口 ${port} 的进程 (pid=${pid})"
+      pkill -P "${pid}" 2>/dev/null || true
+      kill "${pid}" 2>/dev/null || true
+    fi
+  done
+  sleep 1
+  for pid in ${pids}; do
+    if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
+      kill -9 "${pid}" 2>/dev/null || true
+    fi
+  done
+}
+
 # 等端口开始监听
 wait_port_listen() {
   local port="$1" name="$2" timeout="${3:-90}"
@@ -124,33 +167,25 @@ preflight() {
   banner "环境检查"
 
   local missing=()
-  for cmd in docker curl; do
-    have "${cmd}" || missing+=("${cmd}")
-  done
-
-  if (( ${#missing[@]} > 0 )); then
-    err "缺少必要命令: ${missing[*]}"
-    err "请先安装 Docker Desktop 与 curl 后再运行本脚本"
-    exit 1
-  fi
-
-  if ! docker info >/dev/null 2>&1; then
-    die "Docker 未运行。请先启动 Docker Desktop"
-  fi
-  ok "Docker 可用"
+  have curl || missing+=("curl")
 
   case "${MODE}" in
     docker|hybrid)
-      have docker || die "缺少 docker"
+      have docker || missing+=("docker")
+      if (( ${#missing[@]} > 0 )); then
+        err "缺少必要命令: ${missing[*]}"
+        err "请先安装 Docker Desktop 与 curl 后再运行本脚本"
+        exit 1
+      fi
+      if ! docker info >/dev/null 2>&1; then
+        die "Docker 未运行。请先启动 Docker Desktop，或使用 ./start.sh dev 纯本地启动"
+      fi
+      ok "Docker 可用"
       ;;
     dev)
       for cmd in go python3 node npm uv; do
         if ! have "${cmd}"; then
-          # dev 模式容忍 node 缺失 (允许 pnpm), 但 go/python3/npm 必须有
-          case "${cmd}" in
-            node|npm) ;;
-            *) missing+=("${cmd}") ;;
-          esac
+          missing+=("${cmd}")
         fi
       done
       if (( ${#missing[@]} > 0 )); then
@@ -262,12 +297,17 @@ start_agentgo_dev() {
   # shellcheck disable=SC1090
   [[ -f .env ]] && set -a && . ./.env && set +a
 
+  export AGENTGO_SKILLS_DIR="${AGENTGO_SKILLS_DIR:-${AGENTGO_DIR}/skills}"
+  export AGENTGO_PROJECT_SKILLS_DIR="${AGENTGO_PROJECT_SKILLS_DIR:-${AGENTGO_DIR}/project-skills}"
+
   # vendor 模式构建; 若失败回退到普通 go build
   nohup go run -mod=vendor ./cmd/server \
     > "${LOG_DIR}/agentgo.log" 2>&1 &
   echo $! > "${PID_DIR}/agentgo.pid"
+  local pid="$!"
   popd >/dev/null
 
+  ensure_started_pid_alive "${pid}" "AgentGo" "${LOG_DIR}/agentgo.log"
   log "PID: $(cat "${PID_DIR}/agentgo.pid"), 等待端口 ${PORT_AGENTGO} 监听 ..."
   wait_port_listen "${PORT_AGENTGO}" "AgentGo" 90 \
     && ok "AgentGo 已监听端口 ${PORT_AGENTGO}"
@@ -287,6 +327,9 @@ start_backend_dev() {
 
   # 设置 Backend 指向本机 agentgo
   export AGENT_URL="http://localhost:${PORT_AGENTGO}"
+  # 避免系统代理 (Clash/Surge) 劫持 Backend→AgentGo
+  export NO_PROXY="${NO_PROXY:-localhost,127.0.0.1,::1,agentgo}"
+  export no_proxy="${no_proxy:-${NO_PROXY}}"
   export WORKSPACE_PATH="${WORKSPACE_PATH:-${SCRIPT_DIR}/workspace}"
   mkdir -p "${WORKSPACE_PATH}"
 
@@ -294,8 +337,10 @@ start_backend_dev() {
   nohup uv run uvicorn src.main:app --host 0.0.0.0 --port "${PORT_BACKEND}" \
     > "${LOG_DIR}/backend.log" 2>&1 &
   echo $! > "${PID_DIR}/backend.pid"
+  local pid="$!"
   popd >/dev/null
 
+  ensure_started_pid_alive "${pid}" "Backend" "${LOG_DIR}/backend.log"
   log "PID: $(cat "${PID_DIR}/backend.pid"), 等待端口 ${PORT_BACKEND} 监听 ..."
   wait_port_listen "${PORT_BACKEND}" "Backend" 120 \
     && ok "Backend 已监听端口 ${PORT_BACKEND}"
@@ -321,10 +366,13 @@ start_frontend_dev() {
 
   pushd "${FRONTEND_DIR}" >/dev/null
   PORT="${PORT_FRONTEND}" nohup npm run dev -- --host 0.0.0.0 \
+    --strictPort \
     > "${LOG_DIR}/frontend.log" 2>&1 &
   echo $! > "${PID_DIR}/frontend.pid"
+  local pid="$!"
   popd >/dev/null
 
+  ensure_started_pid_alive "${pid}" "Frontend" "${LOG_DIR}/frontend.log"
   log "PID: $(cat "${PID_DIR}/frontend.pid"), 等待端口 ${PORT_FRONTEND} 监听 ..."
   wait_port_listen "${PORT_FRONTEND}" "Frontend" 60 \
     && ok "Frontend 已监听端口 ${PORT_FRONTEND}"
@@ -337,24 +385,24 @@ cmd_start() {
 
   if [[ "${MODE}" == "docker" ]]; then
     # 纯 Docker: 仅启动后端 + agent, 前端必须本地
-    if port_in_use "${PORT_AGENTGO}" || port_in_use "${PORT_BACKEND}"; then
-      warn "端口已被占用, 建议先运行:  ./start.sh stop"
-    fi
+    require_port_free "${PORT_AGENTGO}" "AgentGo"
+    require_port_free "${PORT_BACKEND}" "Backend"
+    require_port_free "${PORT_FRONTEND}" "Frontend"
     start_docker_backend
     start_frontend_dev
   elif [[ "${MODE}" == "dev" ]]; then
     # 纯源码
-    if port_in_use "${PORT_AGENTGO}" || port_in_use "${PORT_BACKEND}" || port_in_use "${PORT_FRONTEND}"; then
-      warn "端口已被占用, 建议先运行:  ./start.sh stop"
-    fi
+    require_port_free "${PORT_AGENTGO}" "AgentGo"
+    require_port_free "${PORT_BACKEND}" "Backend"
+    require_port_free "${PORT_FRONTEND}" "Frontend"
     start_agentgo_dev
     start_backend_dev
     start_frontend_dev
   else
     # hybrid (默认): 等同 docker + frontend
-    if port_in_use "${PORT_AGENTGO}" || port_in_use "${PORT_BACKEND}"; then
-      warn "端口已被占用, 建议先运行:  ./start.sh stop"
-    fi
+    require_port_free "${PORT_AGENTGO}" "AgentGo"
+    require_port_free "${PORT_BACKEND}" "Backend"
+    require_port_free "${PORT_FRONTEND}" "Frontend"
     start_docker_backend
     start_frontend_dev
   fi
@@ -387,6 +435,11 @@ cmd_stop() {
       rm -f "${pid_file}"
     fi
   done
+
+  # 如果 pid 文件被失败启动覆盖，仍按项目固定端口兜底清理旧监听进程。
+  stop_port_listener "${PORT_AGENTGO}" "AgentGo"
+  stop_port_listener "${PORT_BACKEND}" "Backend"
+  stop_port_listener "${PORT_FRONTEND}" "Frontend"
 
   # 2. docker compose down (如果之前是 docker/hybrid)
   if [[ -f "${COMPOSE_DIR}/docker-compose.yml" ]] && have docker; then
@@ -537,7 +590,8 @@ ${C_BOLD}环境变量 (可选)${C_RESET}
 ${C_BOLD}首次运行${C_RESET}
   1. 脚本会创建 \${COMPOSE_DIR}/.env (如不存在), 提示填入 DEEPSEEK_API_KEY
   2. dev 模式会创建 agentgo/.env 与 backend/.env
-  3. Docker 模式首次会构建镜像 (耗时较长, 后续秒启)
+  3. 默认 start/hybrid 需要 Docker Desktop；纯本地请显式运行 ./start.sh dev
+  4. Docker 模式首次会构建镜像 (耗时较长, 后续秒启)
 
 EOF
 }

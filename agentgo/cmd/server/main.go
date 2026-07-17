@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -34,8 +35,8 @@ func main() {
 
 	reg := registry.NewToolRegistry()
 
-	userSkillsDir := "./skills/"
-	projectSkillsDir := "./project-skills/"
+	userSkillsDir := resolveRuntimeDir("AGENTGO_SKILLS_DIR", "skills")
+	projectSkillsDir := resolveRuntimeDir("AGENTGO_PROJECT_SKILLS_DIR", "project-skills")
 	loadedSkills := skill.LoadSkills(userSkillsDir, projectSkillsDir)
 	log.Printf("loaded %d skills", loadedSkills.Len())
 	log.Printf("skills directories: user=%s project=%s", userSkillsDir, projectSkillsDir)
@@ -206,6 +207,37 @@ func (s *Server) newLLMProviderWithEmitter(emitter *observability.Emitter) provi
 		return nil
 	}
 	return p
+}
+
+func resolveRuntimeDir(envName, dirName string) string {
+	if v := os.Getenv(envName); v != "" {
+		if abs, err := filepath.Abs(v); err == nil {
+			return abs
+		}
+		return v
+	}
+
+	candidates := []string{dirName}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), dirName))
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(cwd, dirName),
+			filepath.Join(cwd, "agentgo", dirName),
+		)
+	}
+
+	for _, candidate := range candidates {
+		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
+			if abs, err := filepath.Abs(candidate); err == nil {
+				return abs
+			}
+			return candidate
+		}
+	}
+
+	return dirName
 }
 
 func hookSessionState(engine *hook.Engine) *hook.SessionState {

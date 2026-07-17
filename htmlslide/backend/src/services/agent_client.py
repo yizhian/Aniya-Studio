@@ -12,9 +12,12 @@ class AgentClient:
     """
 
     def __init__(self, base_url: str | None = None, timeout: float | None = None):
+        # trust_env=False: ignore macOS/system HTTP(S) proxies (Clash/Surge etc.).
+        # AgentGo is always local/docker-internal; proxying it yields 502 and empty skills.
         self._client = httpx.AsyncClient(
             base_url=base_url or settings.agent_url,
             timeout=httpx.Timeout(timeout or settings.agent_timeout, connect=10.0),
+            trust_env=False,
         )
 
     async def chat_stream(
